@@ -2,6 +2,7 @@ package se.yrgo.dataaccess;
 
 import java.sql.*;
 import java.util.*;
+import java.util.Date;
 
 import org.springframework.jdbc.core.*;
 
@@ -15,6 +16,9 @@ public class CustomerDaoJdbcTemplateImpl implements CustomerDao {
     private static final String SELECT_BY_ID_SQL = "SELECT * FROM CUSTOMER WHERE CUSTOMER_ID=?";
     private static final String SELECT_BY_NAME_SQL = "SELECT * FROM CUSTOMER WHERE COMPANY_NAME=?";
     private static final String SELECT_ALL_SQL = "SELECT * FROM CUSTOMER";
+
+    private static final String INSERT_SQL_CALL = "INSERT INTO CUSTOMER_CALLS (CALL_TIME, NOTES, CUSTOMER_ID) VALUES (?, ?, ?)";
+	private static final String GET_CALL_BY_CUSTOMERID = "SELECT * FROM TBL_CALL where CUSTOMER_ID=?";
 
     private JdbcTemplate template;
 
@@ -103,15 +107,23 @@ public class CustomerDaoJdbcTemplateImpl implements CustomerDao {
         return template.query(SELECT_ALL_SQL, new CustomerRowMapper());
     }
 
-    @Override
-    public Customer getFullCustomerDetail(String customerId) throws RecordNotFoundException {
-        return getById(customerId);
-    }
+	@Override
+	public Customer getFullCustomerDetail(String customerId) throws RecordNotFoundException {
+		Customer customer = getById(customerId);
+		List<Call> calls = template.query(GET_CALL_BY_CUSTOMERID, new CallRowMapper(),customerId);
 
-    @Override
-    public void addCall(Call newCall, String customerId) throws RecordNotFoundException {
-        throw new UnsupportedOperationException("Call-hantering är inte implementerad än...");
-    }
+		customer.setCalls(calls);
+
+		return customer;
+	}
+
+	@Override
+	public void addCall(Call newCall, String customerId) throws RecordNotFoundException {
+        template.update(INSERT_SQL_CALL, 
+            new java.sql.Timestamp(newCall.getTimeAndDate().getTime()), 
+            newCall.getNotes(),
+            customerId);
+	}
 }
 
 class CustomerRowMapper implements RowMapper<Customer> {
@@ -125,4 +137,13 @@ class CustomerRowMapper implements RowMapper<Customer> {
         Customer customer = new Customer(customerId, companyName, email, telephone, notes);
         return customer;
     }
+}
+
+class CallRowMapper implements RowMapper<Call> {
+	public Call mapRow(ResultSet rs, int arg1) throws SQLException {
+        Date timeAndDate = rs.getTimestamp("CALL_TIME");
+		String notes = rs.getString("NOTES");
+
+		return new Call(notes, timeAndDate);
+	}
 }
